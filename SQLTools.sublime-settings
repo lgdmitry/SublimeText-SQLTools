@@ -236,7 +236,7 @@
                     "options": ["-y30", "-Y30"]
                 },
                 "desc function": {
-                    "query": "exec sp_helptext N'{0}';",
+                    "query": "set nocount on;declare @r table (t nvarchar(max)); insert @r exec sp_helptext N'{0}'; select REPLACE(REPLACE([t],CHAR(10),''),CHAR(13),'') FROM @r;",
                     "options": ["-h-1"]
                 },
                 "explain plan": {
@@ -259,7 +259,11 @@
                 "functions": {
                     "query": "set nocount on; select concat(routine_schema, '.', routine_name) as obj from information_schema.routines order by routine_schema, routine_name;",
                     "options": ["-h-1", "-r1"]
-                }
+                },
+                "show enum": {
+                    "query": "select * from usEnumTypeValues t where exists (select 1 from usEnumTypeValues where tyID = t.tyID and tvID = {0})",
+                    "options": ["-y30", "-Y30"]
+                },
             }
         },
 

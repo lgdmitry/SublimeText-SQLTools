@@ -153,6 +153,9 @@ You might need to restart the editor for settings to be refreshed."""
     def getFunctionDescription(self, functionName, callback):
         self.runFormattedNamedQueryCommand('desc function', functionName, callback)
 
+    def getEnumValues(self, enumValueID, callback):
+        self.runFormattedNamedQueryCommand('show enum', enumValueID, callback)
+
     def explainPlan(self, queries, callback):
         queryName = 'explain plan'
         explainQuery = self.getNamedQuery(queryName)
@@ -215,6 +218,54 @@ You might need to restart the editor for settings to be refreshed."""
         logger.debug("Query: %s", str(queryToRun))
 
         self.Command.createAndRun(args=args,
+                                  env=env,
+                                  callback=callback,
+                                  query=queryToRun,
+                                  encoding=self.encoding,
+                                  options={'show_query': self.show_query},
+                                  timeout=self.timeout,
+                                  silenceErrors=False,
+                                  stream=stream)
+
+    def executeSQL(self, queries, callback, stream=None):
+        queryName = 'execute'
+
+        # if not explicitly overriden, use the value from settings
+        if stream is None:
+            stream = self.useStreams
+
+        if isinstance(queries, str):
+            queries = [queries]
+
+        # add original (umodified) queries to the history
+        if self.history:
+            self.history.add('\n'.join(queries))
+
+        processedQueriesList = []
+        for rawQuery in queries:
+            for query in sqlparse.split(rawQuery):
+                if self.safe_limit:
+                    parsedTokens = sqlparse.parse(query.strip().replace("'", "\""))
+                    if ((parsedTokens[0][0].ttype in sqlparse.tokens.Keyword and
+                            parsedTokens[0][0].value == 'select')):
+                        applySafeLimit = True
+                        for parse in parsedTokens:
+                            for token in parse.tokens:
+                                if token.ttype in sqlparse.tokens.Keyword and token.value == 'limit':
+                                    applySafeLimit = False
+                        if applySafeLimit:
+                            if (query.strip()[-1:] == ';'):
+                                query = query.strip()[:-1]
+                            query += " LIMIT {0};".format(self.safe_limit)
+                processedQueriesList.append(query)
+
+        queryToRun = self.buildNamedQuery(queryName, processedQueriesList)
+        args = self.buildArgs(queryName)
+        env = self.buildEnv()
+
+        logger.debug("Query: %s", str(queryToRun))
+
+        self.Command.createAndRunSQL(args=args,
                                   env=env,
                                   callback=callback,
                                   query=queryToRun,

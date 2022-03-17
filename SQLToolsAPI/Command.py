@@ -3,6 +3,7 @@ import signal
 import subprocess
 import time
 import logging
+import tempfile
 
 from threading import Thread, Timer
 
@@ -117,6 +118,68 @@ class Command(object):
 
         self.callback(resultString)
 
+    def runSQL(self):
+        if not self.query:
+            return
+
+        self.args = map(str, self.args)
+        si = None
+        if os.name == 'nt':
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+        # select appropriate file handle for stderr
+        # usually we want to redirect stderr to stdout, so erros are shown
+        # in the output in the right place (where they actually occurred)
+        # only if silenceErrors=True, we separate stderr from stdout and discard it
+        stderrHandle = subprocess.STDOUT
+        if self.silenceErrors:
+            stderrHandle = subprocess.PIPE
+
+        # set the environment
+        modifiedEnvironment = os.environ.copy()
+        if (self.env):
+            modifiedEnvironment.update(self.env)
+
+        queryTimerStart = time.time()
+
+        self.process = subprocess.Popen(self.args,
+                                        stdout=subprocess.PIPE,
+                                        stderr=stderrHandle,
+                                        stdin=subprocess.PIPE,
+                                        env=modifiedEnvironment,
+                                        startupinfo=si)
+
+        # regular mode is handled with more reliable Popen.communicate
+        # which also terminates the process afterwards
+        results, errors = self.process.communicate()
+
+        queryTimerEnd = time.time()
+
+        resultString = ''
+
+        if results:
+            resultString += results.decode(self.encoding,
+                                           'replace').replace('\r', '')
+
+        if errors and not self.silenceErrors:
+            resultString += errors.decode(self.encoding,
+                                          'replace').replace('\r', '')
+
+        if self.process is None and resultString != '':
+            resultString += '\n'
+
+        if self.options['show_query']:
+            formattedQueryInfo = self._formatShowQuery(self.query, queryTimerStart, queryTimerEnd)
+            queryPlacement = self.options['show_query']
+            if queryPlacement == 'top':
+                resultString = "{0}\n{1}".format(formattedQueryInfo, resultString)
+            elif queryPlacement == 'bottom':
+                resultString = "{0}{1}\n".format(resultString, formattedQueryInfo)
+
+        self.callback(resultString)
+
+
     @staticmethod
     def _formatShowQuery(query, queryTimeStart, queryTimeEnd):
         resultInfo = "/*\n-- Executed querie(s) at {0} took {1:.3f} s --".format(
@@ -143,6 +206,31 @@ class Command(object):
                           stream=stream)
         command.run()
 
+    @staticmethod
+    def createAndRunSQL(args, env, callback, query=None, encoding='utf-8',
+                     options=None, timeout=15, silenceErrors=False, stream=False):
+        if options is None:
+            options = {}
+
+        tmpFile = tempfile.NamedTemporaryFile(mode = 'w', delete = False, suffix='.sql')
+        for q in query:
+            tmpFile.write(q)
+        tmpFile.close()
+
+        args.append("-i")
+        args.append(tmpFile.name)
+
+        command = Command(args=args,
+                          env=env,
+                          callback=callback,
+                          query=query,
+                          encoding=encoding,
+                          options=options,
+                          timeout=timeout,
+                          silenceErrors=silenceErrors,
+                          stream=stream)
+        command.runSQL()
+        os.unlink(tmpFile.name)
 
 class ThreadCommand(Command, Thread):
     def __init__(self, args, env, callback, query=None, encoding='utf-8',

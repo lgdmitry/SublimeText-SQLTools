@@ -1,4 +1,4 @@
-__version__ = "v0.9.12"
+__version__ = "v0.9.13"
 
 import sys
 import os
@@ -675,8 +675,39 @@ class StExecute(WindowCommand):
             return
 
         Window().status_message(MESSAGE_RUNNING_CMD)
-        ST.conn.execute(getSelectionText(), createOutput())
+        ST.conn.executeSQL(getSelectionText(), createOutput())
 
+class StHelp(WindowCommand):
+    @staticmethod
+    def run():
+        currentSyntax = getCurrentSyntax()
+        if not ST.conn:
+            ST.selectConnectionQuickPanel(callback=lambda: Window().run_command('st_help'))
+            return
+
+        Window().status_message(MESSAGE_RUNNING_CMD)
+        ST.conn.getTableDescription(getSelectionText()[0], createOutput(syntax=currentSyntax))
+
+class StHelpText(WindowCommand):
+    @staticmethod
+    def run():
+        currentSyntax = getCurrentSyntax()
+        if not ST.conn:
+            ST.selectConnectionQuickPanel(callback=lambda: Window().run_command('st_help_text'))
+            return
+
+        Window().status_message(MESSAGE_RUNNING_CMD)
+        ST.conn.getFunctionDescription(getSelectionText()[0], createOutput(syntax=currentSyntax))
+
+class StEnumValues(WindowCommand):
+    @staticmethod
+    def run():
+        if not ST.conn:
+            ST.selectConnectionQuickPanel(callback=lambda: Window().run_command('st_enum_values'))
+            return
+
+        Window().status_message(MESSAGE_RUNNING_CMD)
+        ST.conn.getEnumValues(getSelectionText()[0], createOutput())
 
 class StExecuteAll(WindowCommand):
     @staticmethod

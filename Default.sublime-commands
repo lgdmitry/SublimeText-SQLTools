@@ -85,5 +85,17 @@
       "base_file": "${packages}/SQLTools/SQLTools.sublime-settings",
       "default": "// Settings in here override those in \"SQLTools/SQLTools.sublime-settings\"\n{\n\t$0\n}\n"
     }
-  }
+  },
+  {
+    "caption": "ST: sp_help",
+    "command": "st_help"
+  },
+  {
+    "caption": "ST: sp_helptext",
+    "command": "st_help_text"
+  },
+  {
+    "caption": "ST: Get EnumValues",
+    "command": "st_enum_values"
+  },
 ]
